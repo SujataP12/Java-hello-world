@@ -6,15 +6,11 @@ pipeline {
                 script{
                 
                 echo 'Hello world!'
-                checkout([$class: 'GitSCM', branches: [[name: 'main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'github_cred', url: 'https://github.com/SujataP12/Java-hello-world.git']]])
-                 def abc = params.Name
-                 def pqr = params.Home
-                 echo "My name is:- ${abc}"
-                 echo "my home is :- ${pqr}"
+                //checkout([$class: 'GitSCM', branches: [[name: 'main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'github_cred', url: 'https://github.com/SujataP12/Java-hello-world.git']]])
                  sh """
                  ls -l
                  cat Dockerfile
-                 docker build -t testimg .
+                 
                  docker ps 
                  """
                }
@@ -24,6 +20,11 @@ pipeline {
         stage('Stage 2') {
             steps {
                 echo 'This is the second stage '
+               sh"""
+                mvn clean package
+                docker build -t testimg .
+
+                """
             }
         }
     }
