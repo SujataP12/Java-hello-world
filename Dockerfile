@@ -10,4 +10,5 @@ COPY pom.xml /work/
 COPY target/*.jar /work/application.jar
 
 EXPOSE 8080
+
 CMD ["java", "-jar", "application.jar"]
