@@ -6,7 +6,7 @@ pipeline {
                 script{
                 
                 echo 'Hello world!'
-                checkout([$class: 'GitSCM', branches: [[name: 'main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'github_cred', url: 'https://github.com/SujataP12/devops-docker.git']]])
+                checkout([$class: 'GitSCM', branches: [[name: 'main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'github_cred', url: 'https://github.com/SujataP12/Java-hello-world.git']]])
                  def abc = params.Name
                  def pqr = params.Home
                  echo "My name is:- ${abc}"
