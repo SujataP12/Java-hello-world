@@ -35,7 +35,8 @@ pipeline {
                         sh "docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD"
                         sh "docker tag testimg sujatap12/testimg:latest"
                         sh "docker push sujatap12/testimg:latest"
-                        sh "docker logout"
+                        sh "docker pull sujatap12/testimg:latest"
+                        //sh "docker logout"
                     }
                 }
             }
