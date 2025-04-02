@@ -23,7 +23,7 @@ pipeline {
                 echo 'This is the second stage'
                 sh """
                 mvn clean package
-                docker build -t testimg:latest .
+                docker build -t testimg .
                 """
             }
         }
@@ -31,7 +31,7 @@ pipeline {
             steps {
                 echo "This is the third stage"
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'sujatap12', passwordVariable: 'Alpha@1998')]) {
                         sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
                         sh "docker tag testimg sujatap12/testimg:latest"
                         sh "docker push sujatap12/testimg:latest"
