@@ -31,8 +31,8 @@ pipeline {
             steps {
                 echo "This is the third stage"
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'sujatap12', passwordVariable: 'Alpha@1998')]) {
-                        sh "echo ${passwordVariable} | docker login -u ${usernameVariable} --password-stdin"
+                      withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                        sh "docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD"
                         sh "docker tag testimg sujatap12/testimg:latest"
                         sh "docker push sujatap12/testimg:latest"
                         sh "docker logout"
