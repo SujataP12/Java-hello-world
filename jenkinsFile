@@ -7,40 +7,35 @@ pipeline {
     stages {
         stage('Java Hello World') {
             steps {
-                script{
-                
-                echo 'Hello world!'
-                //checkout([$class: 'GitSCM', branches: [[name: 'main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'github_cred', url: 'https://github.com/SujataP12/Java-hello-world.git']]])
-                 sh """
-                 ls -l
-                 cat Dockerfile
-                 
-                 docker ps 
-                 """
-               }
-              }
-            
+                script {
+                    echo 'Hello world!'
+                    //checkout([$class: 'GitSCM', branches: [[name: 'main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'github_cred', url: 'https://github.com/SujataP12/Java-hello-world.git']]])
+                    sh """
+                    ls -l
+                    cat Dockerfile
+                    docker ps 
+                    """
+                }
+            }
         }
         stage('Maven Build') {
             steps {
-                echo 'This is the second stage '
-               sh"""
+                echo 'This is the second stage'
+                sh """
                 mvn clean package
                 docker build -t testimg:latest .
-
                 """
             }
         }
-        stage ('Pushing to Docker Hub') {
+        stage('Pushing to Docker Hub') {
             steps {
                 echo "This is the third stage"
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'sujatap12', passwordVariable: 'Alpha@1998')]) {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                         sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin"
                         sh "docker push testimg:latest"
-                    
-            
                         sh "docker logout"
+                    }
                 }
             }
         }
