@@ -1,30 +1,87 @@
 pipeline {
     agent any
+    environment {
+        DOCKER_IMAGE = "sujatap12/testimg"
+        DOCKER_TAG = "latest"
+        SONAR_HOST_URL = 'http://192.168.122.214:9000'
+        SONAR_TOKEN = credentials('sonar-cred')  // Jenkins credential of type 'Secret text'
+    }
     stages {
-        stage('Stage 1') {
+        stage('Java Hello World') {
             steps {
-                script{
-                
-                echo 'Hello world!'
-                //checkout([$class: 'GitSCM', branches: [[name: 'main']], doGenerateSubmoduleConfigurations: false, extensions: [], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'github_cred', url: 'https://github.com/SujataP12/Java-hello-world.git']]])
-                 sh """
-                 ls -l
-                 cat Dockerfile
-                 
-                 docker ps 
-                 """
-               }
-              }
-            
+                script {
+                    echo 'Hello world!'
+                    sh "ls -l"
+                }
+            }
         }
-        stage('Stage 2') {
-            steps {
-                echo 'This is the second stage '
-               sh"""
-                mvn clean package
-                docker build -t testimg .
 
+        stage('Maven Build') {
+            steps {
+                sh """
+                mvn clean package
+                mkdir -p target/classes
+                ls -l target/
                 """
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withEnv(["SONAR_TOKEN=${env.SONAR_TOKEN}"]) {
+                    script {
+                        sh '''
+                        docker run --rm \
+                          -v "$(pwd):/usr/src" \
+                          -w /usr/src \
+                          newtmitch/sonar-scanner \
+                          sonar-scanner \
+                          -Dsonar.projectKey=Java-hello-world \
+                          -Dsonar.sources=. \
+                          -Dsonar.java.binaries=target/classes \
+                          -Dsonar.host.url=${SONAR_HOST_URL} \
+                          -Dsonar.login=${SONAR_TOKEN}
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Check SonarQube Quality Gate') {
+            steps {
+                script {
+                    def ceTaskUrl = sh (
+                        script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/ce/component?component=Java-hello-world" | jq -r '.current.analysisId'""",
+                        returnStdout: true
+                    ).trim()
+
+                    sleep 10 // give it a few seconds to finish analysis
+
+                    def qualityStatus = sh (
+                        script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=Java-hello-world" | tee sonar-result.json | jq -r '.projectStatus.status'""",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "SonarQube Quality Gate Status: ${qualityStatus}"
+                    sh "cat sonar-result.json"
+
+                    if (qualityStatus != 'OK') {
+                        error "SonarQube quality gate failed: ${qualityStatus}"
+                    }
+                }
+            }
+        }
+
+        stage('Pushing to Docker Hub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh """
+                    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+                    docker tag testimg sujatap12/testimg:latest
+                    docker push sujatap12/testimg:latest
+                    docker pull sujatap12/testimg:latest
+                    """
+                }
             }
         }
     }
