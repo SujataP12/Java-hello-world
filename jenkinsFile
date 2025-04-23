@@ -83,7 +83,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker run -d -p 8080:8080 --name testimg sujatap12/testimg:latest
+                    docker run -d -p 8001:8001 --name testimg sujatap12/testimg:latest
                     sleep 5
                     """
                 }
@@ -93,7 +93,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    curl -X GET http://192.168.122.214:8080/hello
+                    curl -X GET http://192.168.122.214:8001/hello
                     #Print the response to the console
                     echo "Response from the application:"
                     """
