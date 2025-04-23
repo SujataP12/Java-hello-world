@@ -4,13 +4,16 @@ pipeline {
         DOCKER_IMAGE = "sujatap12/testimg"
         DOCKER_TAG = "latest"
         SONAR_HOST_URL = 'http://192.168.122.214:9000'
-        SONAR_TOKEN = credentials('sonar-cred')  // Jenkins credential of type 'Secret text'
+        SONAR_TOKEN = credentials('sonar-cred')
+    }
+    options {
+        ansiColor('xterm') // Enable ANSI color in Jenkins console
     }
     stages {
         stage('Java Hello World') {
             steps {
                 script {
-                    echo 'Hello world!'
+                    echo "\u001B[34mHello world! (BLUE)\u001B[0m"
                     sh "ls -l"
                 }
             }
@@ -18,33 +21,41 @@ pipeline {
 
         stage('Maven Build') {
             steps {
+                echo "\u001B[32mBuilding the project... (GREEN)\u001B[0m"
                 sh """
-                mvn clean package
-                mkdir -p target/classes
-                ls -l target/
+                    mvn clean verify
+                    mkdir -p target/classes
+                    ls -l target/
                 """
+            }
+        }
+
+        stage('JaCoCo Report') {
+            steps {
+                echo "\u001B[34mShowing JaCoCo Report Path (BLUE)\u001B[0m"
+                sh "ls -l target/site/jacoco"
+                sh "cat target/site/jacoco/index.html || echo '\u001B[31mJaCoCo HTML report not found\u001B[0m'"
             }
         }
 
         stage('SonarQube Analysis') {
             steps {
                 withEnv(["SONAR_TOKEN=${env.SONAR_TOKEN}"]) {
-                    script {
-                        sh '''
-                        docker run --rm \
-                          -v "$(pwd):/usr/src" \
-                          -w /usr/src \
-                          newtmitch/sonar-scanner \
-                          sonar-scanner \
-                          -Dsonar.projectKey=Java-hello-world \
-                          -Dsonar.sources=. \
-                          -Dsonar.java.binaries=target/classes \
-                          -Dsonar.host.url=${SONAR_HOST_URL} \
-                          -Dsonar.login=${SONAR_TOKEN} \
-                          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-
-                        '''
-                    }
+                    echo "\u001B[34mRunning SonarQube Analysis (BLUE)\u001B[0m"
+                    sh '''
+                    docker run --rm \
+                      -v "$(pwd):/usr/src" \
+                      -w /usr/src \
+                      newtmitch/sonar-scanner \
+                      sonar-scanner \
+                      -Dsonar.projectKey=Java-hello-world \
+                      -Dsonar.projectName=Java-hello-world \
+                      -Dsonar.sources=. \
+                      -Dsonar.java.binaries=target/classes \
+                      -Dsonar.host.url=${SONAR_HOST_URL} \
+                      -Dsonar.login=${SONAR_TOKEN} \
+                      -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                    '''
                 }
             }
         }
@@ -52,13 +63,8 @@ pipeline {
         stage('Check SonarQube Quality Gate') {
             steps {
                 script {
-                    def ceTaskUrl = sh (
-                        script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/ce/component?component=Java-hello-world" | jq -r '.current.analysisId'""",
-                        returnStdout: true
-                    ).trim()
-
-                    sleep 10 // give it a few seconds to finish analysis
-
+                    echo "\u001B[34mChecking Quality Gate... (BLUE)\u001B[0m"
+                    sleep 10
                     def qualityStatus = sh (
                         script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=Java-hello-world" | tee sonar-result.json | jq -r '.projectStatus.status'""",
                         returnStdout: true
@@ -68,7 +74,10 @@ pipeline {
                     sh "cat sonar-result.json"
 
                     if (qualityStatus != 'OK') {
-                        error "SonarQube quality gate failed: ${qualityStatus}"
+                        echo "\u001B[95mQuality Gate Failed! (PINK)\u001B[0m"
+                        error "\u001B[31mSonarQube quality gate failed: ${qualityStatus} (RED)\u001B[0m"
+                    } else {
+                        echo "\u001B[32mQuality Gate Passed! (GREEN)\u001B[0m"
                     }
                 }
             }
@@ -77,6 +86,7 @@ pipeline {
         stage('Pushing to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    echo "\u001B[32mPushing Docker image... (GREEN)\u001B[0m"
                     sh """
                     docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
                     docker tag testimg sujatap12/testimg:latest
@@ -86,5 +96,42 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy Container And Remove the container and the image') {
+            steps {
+                script {
+                    echo "\u001B[32mDeploying Docker container... (GREEN)\u001B[0m"
+                    sh """
+                        CONTAINER_ID=\$(docker run -d -p 5001:8080 --name testimg sujatap12/testimg:latest)
+                        sleep 5
+                        if [ -n "\$CONTAINER_ID" ]; then
+                            echo "Stopping container \$CONTAINER_ID"
+                            docker stop \$CONTAINER_ID
+                            docker rm \$CONTAINER_ID
+                            docker rmi sujatap12/testimg:latest
+                        else
+                            echo "Container not found"
+                        fi
+                    """
+                }
+            }
+        }
+    }
+    post {
+        success {
+            echo "\u001B[32mBuild Successful! (GREEN)\u001B[0m"
+        }
+        failure {
+            echo "\u001B[31mBuild Failed! (RED)\u001B[0m"
+        }
     }
 }
+// This Jenkinsfile is a pipeline script for a Java project that uses Maven for building, JaCoCo for code coverage, and SonarQube for static code analysis. It also includes stages for pushing a Docker image to Docker Hub and deploying a Docker container. The script uses ANSI color codes to enhance the console output with colors.
+// The pipeline consists of the following stages:
+// 1. **Java Hello World**: Prints "Hello world!" in blue and lists the files in the current directory.
+// 2. **Maven Build**: Cleans and builds the Maven project, creating a target directory.
+// 3. **JaCoCo Report**: Displays the path to the JaCoCo report and checks if the HTML report exists.
+// 4. **SonarQube Analysis**: Runs SonarQube analysis using a Docker container, specifying the project key, name, sources, binaries, and JaCoCo report path.
+// 5. **Check SonarQube Quality Gate**: Checks the SonarQube quality gate status and fails the build if it is not "OK".
+// 6. **Pushing to Docker Hub**: Logs in to Docker Hub, tags the image, and pushes it to the repository.
+// 7. **Deploy Container And Remove the container and the image**: Runs a Docker container, waits for a few seconds, stops and removes the container, and then removes the Docker image.
