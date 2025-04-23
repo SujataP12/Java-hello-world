@@ -7,14 +7,6 @@ pipeline {
         SONAR_TOKEN = credentials('sonar-cred')  // Jenkins credential of type 'Secret text'
     }
     stages {
-        stage('Java Hello World') {
-            steps {
-                script {
-                    echo 'Hello world!'
-                    sh "ls -l"
-                }
-            }
-        }
 
         stage('Maven Build') {
             steps {
@@ -50,7 +42,7 @@ pipeline {
             }
         }
 
-        stage('Check SonarQube Quality Gate') {
+        stage('SonarQube Scan') {
             steps {
                 script {
                     def ceTaskUrl = sh (
@@ -83,6 +75,47 @@ pipeline {
                     docker tag testimg sujatap12/testimg:latest
                     docker push sujatap12/testimg:latest
                     docker pull sujatap12/testimg:latest
+                    """
+                }
+            }
+        }
+        stage('Deploy Container') {
+            steps {
+                script {
+                    sh """
+                    docker run -d -p 8080:8080 --name testimg sujatap12/testimg:latest
+                    sleep 5
+                    """
+                }
+            }
+        }
+        stage('Access Application') {
+            steps {
+                script {
+                    sh """
+                    curl -X GET http://192.168.122.214:8080/hello
+                    #Print the response to the console
+                    echo "Response from the application:"
+                    """
+                }
+            }
+        }
+        stage('Stop and Remove Docker Container') {
+            steps {
+                script {
+                    sh """
+                    docker stop testimg
+                    docker rm testimg
+                    """
+                }
+            }
+        }
+        stage('Cleanup') {
+            steps {
+                script {
+                    sh """
+                    docker rmi sujatap12/testimg:latest
+                    docker rmi testimg
                     """
                 }
             }
