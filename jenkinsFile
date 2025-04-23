@@ -1,19 +1,20 @@
 pipeline {
     agent any
+
     environment {
         DOCKER_IMAGE = "sujatap12/testimg"
         DOCKER_TAG = "latest"
         SONAR_HOST_URL = 'http://192.168.122.214:9000'
-        SONAR_TOKEN = credentials('sonar-cred')  // Jenkins credential of type 'Secret text'
+        SONAR_TOKEN = credentials('sonar-cred')  // Jenkins secret text
     }
-    stages {
 
+    stages {
         stage('Maven Build') {
             steps {
                 sh """
-                mvn clean package
-                mkdir -p target/classes
-                ls -l target/
+                    mvn clean package
+                    mkdir -p target/classes
+                    ls -l target/
                 """
             }
         }
@@ -21,8 +22,7 @@ pipeline {
         stage('SonarQube Analysis') {
             steps {
                 withEnv(["SONAR_TOKEN=${env.SONAR_TOKEN}"]) {
-                    script {
-                        sh '''
+                    sh '''
                         docker run --rm \
                           -v "$(pwd):/usr/src" \
                           -w /usr/src \
@@ -35,89 +35,80 @@ pipeline {
                           -Dsonar.host.url=${SONAR_HOST_URL} \
                           -Dsonar.login=${SONAR_TOKEN} \
                           -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
-
-                        '''
-                    }
+                    '''
                 }
             }
         }
 
-        stage('SonarQube Scan') {
+        stage('Check SonarQube Quality Gate') {
             steps {
                 script {
-                    def ceTaskUrl = sh (
-                        script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/ce/component?component=Java-hello-world" | jq -r '.current.analysisId'""",
-                        returnStdout: true
-                    ).trim()
-
-                    sleep 10 // give it a few seconds to finish analysis
-
-                    def qualityStatus = sh (
-                        script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=Java-hello-world" | tee sonar-result.json | jq -r '.projectStatus.status'""",
+                    sleep 10 // wait for background tasks
+                    def qualityStatus = sh(
+                        script: """curl -s -u ${SONAR_TOKEN}: "${SONAR_HOST_URL}/api/qualitygates/project_status?projectKey=Java-hello-world" | jq -r '.projectStatus.status'""",
                         returnStdout: true
                     ).trim()
 
                     echo "SonarQube Quality Gate Status: ${qualityStatus}"
-                    sh "cat sonar-result.json"
 
                     if (qualityStatus != 'OK') {
-                        error "SonarQube quality gate failed: ${qualityStatus}"
+                        error "SonarQube Quality Gate Failed: ${qualityStatus}"
                     }
                 }
             }
         }
 
-        stage('Pushing to Docker Hub') {
+        stage('Push Docker Image to Docker Hub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhubcred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                     sh """
-                    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-                    docker tag testimg sujatap12/testimg:latest
-                    docker push sujatap12/testimg:latest
-                    docker pull sujatap12/testimg:latest
+                        docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+                        docker tag testimg ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${DOCKER_IMAGE}:${DOCKER_TAG}
                     """
                 }
             }
         }
+
         stage('Deploy Container') {
             steps {
                 script {
                     sh """
-                    docker run -d -p 8001:8001 --name javacontainer sujatap12/testimg:latest
-                    sleep 5
+                        docker run -d -p 8888:8080 --name javacontainer ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        sleep 10
+                        docker logs javacontainer --tail 30
                     """
                 }
             }
         }
+
         stage('Access Application') {
             steps {
                 script {
+                    echo "Accessing the application on port 8888..."
                     sh """
-                    curl -X GET http://192.168.122.214:8001/hello
-                    #Print the response to the console
-                    echo "Response from the application:"
+                        RESPONSE=\$(curl -s -X GET http://192.168.122.214:8888/hello || echo 'Application not responding')
+                        echo "Response from the application: \$RESPONSE"
                     """
                 }
             }
         }
+
         stage('Stop and Remove Docker Container') {
             steps {
-                script {
-                    sh """
+                sh """
                     docker stop javacontainer
                     docker rm javacontainer
-                    """
-                }
+                """
             }
         }
-        stage('Cleanup') {
+
+        stage('Cleanup Docker Images') {
             steps {
-                script {
-                    sh """
-                    docker rmi sujatap12/testimg:latest
-                    docker rmi testimg
-                    """
-                }
+                sh """
+                    docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true
+                    docker rmi testimg || true
+                """
             }
         }
     }
