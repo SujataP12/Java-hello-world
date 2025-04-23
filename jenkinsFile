@@ -83,7 +83,7 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker run -d -p 8001:8001 --name testimg sujatap12/testimg:latest
+                    docker run -d -p 8001:8001 --name javacontainer sujatap12/testimg:latest
                     sleep 5
                     """
                 }
@@ -104,8 +104,8 @@ pipeline {
             steps {
                 script {
                     sh """
-                    docker stop testimg
-                    docker rm testimg
+                    docker stop javacontainer
+                    docker rm javacontainer
                     """
                 }
             }
